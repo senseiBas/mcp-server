@@ -2,6 +2,16 @@ import { App } from 'obsidian';
 import { Server, IncomingMessage, ServerResponse } from 'http';
 
 /**
+ * JSON-RPC request structure
+ */
+interface JsonRpcRequest {
+	jsonrpc: string;
+	id: number | string;
+	method: string;
+	params?: Record<string, any>;
+}
+
+/**
  * MCP Server - HTTP based for Electron compatibility
  * Handles MCP protocol communication via HTTP POST
  */
@@ -83,8 +93,9 @@ export class MCPServer {
 			return;
 		}
 
+		const serverToClose = this.server;
 		return new Promise((resolve) => {
-			this.server!.close(() => {
+			serverToClose.close(() => {
 				console.log('MCP Server: Stopped');
 				this.server = null;
 				resolve();
@@ -102,16 +113,29 @@ export class MCPServer {
 			// Parse JSON-RPC message
 			const request = JSON.parse(body);
 			
-			// For now, just echo back to confirm connection
-			const response = {
-				jsonrpc: '2.0',
-				id: request.id,
-				result: {
-					status: 'connected',
-					message: 'MCP Server is running',
-					method: request.method
-				}
-			};
+			// Route to appropriate MCP method handler
+			let response;
+			switch (request.method) {
+				case 'initialize':
+					response = this.handleInitialize(request);
+					break;
+				case 'tools/list':
+					response = this.handleToolsList(request);
+					break;
+				case 'tools/call':
+					response = this.handleToolsCall(request);
+					break;
+				default:
+					// Unknown method
+					response = {
+						jsonrpc: '2.0',
+						id: request.id,
+						error: {
+							code: -32601,
+							message: `Method not found: ${request.method}`
+						}
+					};
+			}
 
 			res.writeHead(200, { 'Content-Type': 'application/json' });
 			res.end(JSON.stringify(response));
@@ -128,6 +152,137 @@ export class MCPServer {
 				} 
 			}));
 		}
+	}
+
+	/**
+	 * Handle MCP initialize request
+	 * Establishes protocol version and server capabilities
+	 */
+	private handleInitialize(request: JsonRpcRequest): Record<string, any> {
+		console.log('MCP Server: Initialize request');
+		
+		return {
+			jsonrpc: '2.0',
+			id: request.id,
+			result: {
+				protocolVersion: '2024-11-05',
+				serverInfo: {
+					name: 'obsidian-mcp-server',
+					version: '1.0.0'
+				},
+				capabilities: {
+					tools: {}
+				}
+			}
+		};
+	}
+
+	/**
+	 * Handle tools/list request
+	 * Returns available tools and their schemas
+	 */
+	private handleToolsList(request: JsonRpcRequest): Record<string, any> {
+		console.log('MCP Server: Tools list request');
+		
+		return {
+			jsonrpc: '2.0',
+			id: request.id,
+			result: {
+				tools: [
+					{
+						name: 'search',
+						description: 'Search vault with scope options (file, folder, tag, or entire vault)',
+						inputSchema: {
+							type: 'object',
+							properties: {
+								query: {
+									type: 'string',
+									description: 'Search query text'
+								},
+								scope_type: {
+									type: 'string',
+									enum: ['file', 'folder', 'tag', 'vault'],
+									description: 'Type of scope to search in'
+								},
+								scope_value: {
+									type: 'string',
+									description: 'Value for the scope (file path, folder path, or tag name). Empty for vault-wide search.'
+								}
+							},
+							required: ['query', 'scope_type']
+						}
+					},
+					{
+						name: 'find_clusters',
+						description: 'Find related notes based on keyword similarity',
+						inputSchema: {
+							type: 'object',
+							properties: {
+								folder_path: {
+									type: 'string',
+									description: 'Folder path to search in (use "" for root)'
+								},
+								query: {
+									type: 'string',
+									description: 'Search keywords to find related notes'
+								},
+								depth: {
+									type: 'number',
+									description: 'How deep to traverse links (default: 1)',
+									default: 1
+								}
+							},
+							required: ['folder_path', 'query']
+						}
+					},
+					{
+						name: 'bulk_tag',
+						description: 'Add tags to multiple notes at once',
+						inputSchema: {
+							type: 'object',
+							properties: {
+								file_paths: {
+									type: 'array',
+									items: { type: 'string' },
+									description: 'Array of file paths to tag'
+								},
+								tag: {
+									type: 'string',
+									description: 'Tag to add (without #)'
+								}
+							},
+							required: ['file_paths', 'tag']
+						}
+					}
+				]
+			}
+		};
+	}
+
+	/**
+	 * Handle tools/call request
+	 * Executes a tool with given arguments
+	 */
+	private handleToolsCall(request: JsonRpcRequest): Record<string, any> {
+		const toolName = request.params?.name;
+		const args = request.params?.arguments || {};
+
+		console.log(`MCP Server: Calling tool "${toolName}" with args:`, args);
+
+		// For now, return placeholder responses
+		// Actual tool implementations will be added in rounds 4-6
+		return {
+			jsonrpc: '2.0',
+			id: request.id,
+			result: {
+				content: [
+					{
+						type: 'text',
+						text: `Tool "${toolName}" called successfully.\n\nArguments received:\n${JSON.stringify(args, null, 2)}\n\n(This is a placeholder response - actual implementation coming in next rounds)`
+					}
+				]
+			}
+		};
 	}
 
 	/**

@@ -166,12 +166,12 @@ export class MCPServer {
 			id: request.id,
 			result: {
 				protocolVersion: '2024-11-05',
+				capabilities: {
+					tools: {}
+				},
 				serverInfo: {
 					name: 'obsidian-mcp-server',
 					version: '1.0.0'
-				},
-				capabilities: {
-					tools: {}
 				}
 			}
 		};

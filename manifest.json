@@ -1,0 +1,9 @@
+{
+	"id": "mcp-server",
+	"name": "MCP Server",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "Obsidian MCP server plugin.",
+	"author": "Sensei Bas",
+	"isDesktopOnly": true
+}

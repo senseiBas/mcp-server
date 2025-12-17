@@ -1,53 +1,169 @@
-# Obsidian Sample Plugin
+# Obsidian MCP Server Plugin
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+An Obsidian plugin that functions as an MCP (Model Context Protocol) server, allowing Claude Desktop to interact with your Obsidian vault.
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+## Features
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open Sample Modal" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+This plugin provides three powerful tools for Claude Desktop:
 
-## First time developing plugins?
+1. **search** - Search your vault with flexible scoping (file, folder, tag, or entire vault)
+2. **find_clusters** - Find related notes based on keyword similarity and link traversal
+3. **bulk_tag** - Add tags to multiple notes at once via frontmatter
 
-Quick starting guide for new plugin devs:
+## Installation
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+### 1. Install the Plugin
 
-## Releasing new releases
+Clone or download this repository into your vault's plugins folder:
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+```
+<your-vault>/.obsidian/plugins/mcp-server/
+```
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+Then in Obsidian:
+1. Go to **Settings → Community plugins**
+2. Disable **Restricted mode** (if enabled)
+3. Click **Reload** plugins
+4. Enable **MCP Server**
 
-## Adding your plugin to the community plugin list
+### 2. Configure Claude Desktop
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+The plugin runs an HTTP server on `localhost:3000`. To connect Claude Desktop, you need to add a stdio bridge configuration.
 
-## How to use
+#### Windows Configuration
 
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
+1. Open the Claude Desktop config file:
+   ```
+   %APPDATA%\Claude\claude_desktop_config.json
+   ```
+
+2. Add the following configuration (replace the path with YOUR vault location):
+
+```json
+{
+  "mcpServers": {
+    "obsidian-vault": {
+      "command": "node",
+      "args": [
+        "C:\\Path\\To\\Your\\Vault\\.obsidian\\plugins\\mcp-server\\stdio-bridge.js"
+      ]
+    }
+  }
+}
+```
+
+**⚠️ IMPORTANT:** Replace `C:\\Path\\To\\Your\\Vault` with the actual path to your vault!
+
+**Example:**
+```json
+{
+  "mcpServers": {
+    "obsidian-vault": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\YourName\\Documents\\My Vault\\.obsidian\\plugins\\mcp-server\\stdio-bridge.js"
+      ]
+    }
+  }
+}
+```
+
+#### macOS/Linux Configuration
+
+1. Open the Claude Desktop config file:
+   ```
+   ~/Library/Application Support/Claude/claude_desktop_config.json
+   ```
+
+2. Add the following (replace the path):
+
+```json
+{
+  "mcpServers": {
+    "obsidian-vault": {
+      "command": "node",
+      "args": [
+        "/path/to/your/vault/.obsidian/plugins/mcp-server/stdio-bridge.js"
+      ]
+    }
+  }
+}
+```
+
+### 3. Restart Claude Desktop
+
+Completely quit and restart Claude Desktop for the changes to take effect.
+
+## Usage
+
+Once configured, Claude Desktop can interact with your vault:
+
+- **"Search my vault for notes about project management"**
+- **"Find related notes about machine learning"**
+- **"Add the tag 'important' to these notes: [file paths]"**
+
+You'll see the 🔌 icon in Claude Desktop showing available MCP servers and tools.
+
+## Development
+
+### Build
+
+```bash
+npm install
+npm run build
+```
+
+### Watch Mode
+
+```bash
+npm run dev
+```
+
+### Testing
+
+Test the HTTP server directly:
+
+```bash
+node test-connection.js
+```
+
+Test MCP protocol:
+
+```bash
+node test-mcp.js
+```
+
+## Technical Details
+
+- **Server Type:** HTTP-based MCP server (Electron-compatible)
+- **Port:** 3000 (localhost only, for security)
+- **Protocol:** MCP (Model Context Protocol) over JSON-RPC
+- **Bridge:** stdio-bridge.js converts between Claude Desktop (stdio) and HTTP
+
+## Troubleshooting
+
+### Plugin doesn't load
+- Check Obsidian Developer Console (Ctrl+Shift+I)
+- Ensure `main.js` exists (run `npm run build`)
+
+### Claude Desktop can't connect
+- Verify Obsidian is running
+- Check that MCP Server plugin is enabled
+- Verify the path in `claude_desktop_config.json` is correct
+- Restart Claude Desktop completely
+
+### Port already in use
+- Default port is 3000
+- Check if another application is using it
+- Plugin will show error in Obsidian console
+
+## License
+
+MIT License - See LICENSE file
+
+## Author
+
+Bas van Laarhoven / Sensei Bas
 - `npm i` or `yarn` to install dependencies.
 - `npm run dev` to start compilation in watch mode.
 

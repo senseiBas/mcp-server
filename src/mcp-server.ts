@@ -113,6 +113,14 @@ export class MCPServer {
 			// Parse JSON-RPC message
 			const request = JSON.parse(body);
 			
+			// Handle notifications (no response expected)
+			if (!request.id && request.method?.startsWith('notifications/')) {
+				console.log(`MCP Server: Notification received: ${request.method}`);
+				res.writeHead(200, { 'Content-Type': 'application/json' });
+				res.end(JSON.stringify({ status: 'ok' }));
+				return;
+			}
+			
 			// Route to appropriate MCP method handler
 			let response;
 			switch (request.method) {

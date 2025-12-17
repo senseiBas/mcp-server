@@ -68,16 +68,35 @@ function sendToObsidian(message) {
  * Handle incoming message from Claude Desktop
  */
 async function handleMessage(line) {
+    // Ignore empty lines
+    if (!line || line.trim() === '') {
+        return;
+    }
+
     try {
         const request = JSON.parse(line);
+        
+        // Log to stderr (doesn't interfere with stdio)
+        console.error('[REQUEST]', JSON.stringify(request));
+        
+        // Check if this is a notification (no id property)
+        const isNotification = !request.id && request.method?.startsWith('notifications/');
         
         // Forward to Obsidian HTTP server
         const response = await sendToObsidian(request);
         
-        // Send response back to Claude Desktop via stdout
-        console.log(JSON.stringify(response));
+        // Log response
+        console.error('[RESPONSE]', JSON.stringify(response));
+        
+        // Only send response back to Claude Desktop for requests (not notifications)
+        if (!isNotification) {
+            console.log(JSON.stringify(response));
+        } else {
+            console.error('[NOTIFICATION] No response sent to Claude Desktop');
+        }
         
     } catch (error) {
+        console.error('[ERROR]', error.message);
         // Send error response back to Claude Desktop
         const errorResponse = {
             jsonrpc: '2.0',

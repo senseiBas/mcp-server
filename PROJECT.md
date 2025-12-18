@@ -8,12 +8,10 @@ Create an Obsidian plugin that functions as an MCP (Model Context Protocol) serv
 obsidian-mcp-server/
 ├── manifest.json          # Obsidian plugin manifest
 ├── main.ts               # Plugin entry point
+├── stdio-bridge.js       # Bridge between Claude Desktop (stdio) and Obsidian (HTTP)
 ├── src/
-│   ├── mcp-server.ts     # MCP server implementation
-│   ├── tools/
-│   │   ├── search.ts     # Search tool
-│   │   ├── clusters.ts   # Find clusters tool
-│   │   └── tags.ts       # Bulk tagging tool
+│   ├── mcp-server.ts     # HTTP-based MCP server implementation
+│   ├── tools/            # Tool implementations (to be added incrementally)
 │   └── types.ts          # TypeScript types
 ├── package.json
 ├── tsconfig.json
@@ -29,54 +27,24 @@ obsidian-mcp-server/
 - Plugin ID: "mcp-server"
 
 ### 2. MCP Server Implementation
-- Start WebSocket server on plugin load (localhost:3000)
-- Implement MCP protocol (JSON-RPC over WebSocket)
-- Support these MCP methods:
-  - initialize
-  - tools/list
-  - tools/call
-  - shutdown
+- ✅ HTTP server on plugin load (localhost:3000) - better than WebSocket for Electron
+- ✅ Stdio bridge for Claude Desktop communication
+- ✅ MCP protocol implementation (JSON-RPC)
+- ✅ Support for: initialize, notifications/initialized, tools/list, tools/call
+- Tools to be added incrementally based on API exploration
 
-### 3. Tools to Implement
+### 3. Tool Development (Exploratory Phase)
 
-#### Tool 1: find_clusters
-**Purpose:** Find related notes based on keyword similarity
-**Parameters:**
-- folder_path: string (e.g., root folder)
-- query: string (search keywords)
-- depth: number (optional, default 1) - how deep to traverse links
-**Returns:** Array of related notes with scores
+**Current placeholder tools** (in tools/list response):
+- search - Search vault with scope options
+- find_clusters - Find related notes based on keyword similarity  
+- bulk_tag - Add tags to multiple notes at once
 
-**Implementation:**
-- Read all markdown files in folder
-- Score by keyword match (simple text search for MVP)
-- Consider depth parameter for link traversal
-- Handle emoji in folder paths (UTF-8 encoding)
-
-#### Tool 2: search
-**Purpose:** Search vault with scope options
-**Parameters:**
-- query: string
-- scope_type: "file" | "folder" | "tag" | "vault"
-- scope_value: string (path, tag name, or empty for vault)
-**Returns:** Array of matching notes
-
-**Implementation:**
-- Support scoped search by file, folder, tag, or entire vault
-- Handle emoji in paths
-- Return note path, title, and matching context
-
-#### Tool 3: bulk_tag
-**Purpose:** Add tags to multiple notes
-**Parameters:**
-- file_paths: string[]
-- tag: string
-**Returns:** Success/failure status
-
-**Implementation:**
-- Update frontmatter YAML for each file
-- Add tag if not present
-- Preserve existing tags
+**Next steps:**
+1. Explore Obsidian API (`node_modules/obsidian/obsidian.d.ts`)
+2. Identify most useful capabilities for Claude
+3. Replace/extend placeholder tools with real implementations
+4. Focus on safe, read-heavy operations first
 
 ### 4. Technical Requirements
 
@@ -117,10 +85,10 @@ Add to Claude Desktop's config file:
 
 ### 6. Dependencies
 
-**Required npm packages:**
-- @modelcontextprotocol/sdk (MCP protocol)
+**npm packages:**
 - obsidian (Obsidian API types)
-- ws (WebSocket server)
+
+**Note:** We removed @modelcontextprotocol/sdk and ws - not needed for our HTTP-based approach.
 
 ### 7. Development Setup
 
@@ -135,23 +103,61 @@ Add to Claude Desktop's config file:
 - Test WebSocket connection
 - Test Claude Desktop integration
 
-## MVP Scope
+## Implementation Approach
 
-**Phase 1 (First Working Version):**
+### Current Status (✅ Completed)
+
+**Phase 1: Infrastructure**
 - ✅ Basic plugin structure
-- ✅ WebSocket server on localhost:3000
-- ✅ MCP protocol basics (initialize, tools/list, tools/call)
-- ✅ find_clusters tool (simple keyword matching)
-- ✅ search tool (vault-wide, basic)
-- ✅ bulk_tag tool (frontmatter updates)
-- ✅ Emoji path support
+- ✅ HTTP server on localhost:3000 (not WebSocket - better for Electron)
+- ✅ MCP protocol working (initialize, tools/list, tools/call)
+- ✅ Stdio bridge for Claude Desktop integration
+- ✅ Successfully connects to Claude Desktop
 
-**Phase 2 (Later):**
-- Bases CRUD operations
-- Canvas operations
-- Advanced graph queries with configurable depth
-- TF-IDF scoring for clusters
-- Backlink analysis
+**Phase 2: API Exploration & Tool Development** (Current)
+
+We're taking an **exploratory approach** rather than implementing predefined tools:
+
+1. **Explore Obsidian API** - verstaan wat mogelijk is:
+   - `app.vault` - File operations (read/write/delete/list)
+   - `app.metadataCache` - Links, tags, frontmatter, headings
+   - `app.workspace` - Active file, editor, views
+   - `app.fileManager` - File management operations
+
+2. **Identify useful tools** - bepalen wat Claude echt nuttig zou vinden:
+   - Based on actual API capabilities
+   - Focus on read operations (safe)
+   - Consider common use cases
+
+3. **Implement incrementally** - stap voor stap tools toevoegen:
+   - One tool at a time
+   - Test thoroughly
+   - Commit working code
+
+### Potential Tool Ideas (To Explore)
+
+**Reading & Discovery:**
+- List files/folders
+- Read note content
+- Get note metadata (tags, links, frontmatter)
+- Search in vault
+- Get backlinks for a note
+
+**Analysis:**
+- Find related notes (via links or tags)
+- Get tag overview
+- Find orphaned notes (no links)
+
+**Writing (Carefully):**
+- Create new note
+- Append to note
+- Update frontmatter
+- Add tags
+
+**Excluded (Too Risky for MVP):**
+- Delete operations
+- Bulk modifications without confirmation
+- File renaming/moving (can break links)
 
 ## Notes
 
@@ -171,6 +177,3 @@ Plugin successfully:
 5. Handles emoji in paths correctly
 6. Updates note frontmatter via bulk_tag
 
----
-
-Start with basic plugin structure and WebSocket server, then implement tools one by one.

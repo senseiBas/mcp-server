@@ -1,5 +1,7 @@
 import { App } from 'obsidian';
 import { Server, IncomingMessage, ServerResponse } from 'http';
+import { getNote } from './tools/get-note';
+import { searchNotes } from './tools/search-notes';
 
 /**
  * JSON-RPC request structure
@@ -106,7 +108,7 @@ export class MCPServer {
 	/**
 	 * Handle incoming HTTP requests
 	 */
-	private handleRequest(body: string, res: ServerResponse): void {
+	private async handleRequest(body: string, res: ServerResponse): Promise<void> {
 		try {
 			console.log('MCP Server: Received:', body);
 
@@ -131,7 +133,7 @@ export class MCPServer {
 					response = this.handleToolsList(request);
 					break;
 				case 'tools/call':
-					response = this.handleToolsCall(request);
+					response = await this.handleToolsCall(request);
 					break;
 				default:
 					// Unknown method
@@ -198,68 +200,44 @@ export class MCPServer {
 			result: {
 				tools: [
 					{
-						name: 'search',
-						description: 'Search vault with scope options (file, folder, tag, or entire vault)',
+						name: 'search_notes',
+						description: 'Search for notes in the vault by query text. Searches in note titles and content. Returns matching notes with snippets.',
 						inputSchema: {
 							type: 'object',
 							properties: {
 								query: {
 									type: 'string',
-									description: 'Search query text'
+									description: 'Search query text (searches in titles and content)'
 								},
-								scope_type: {
+								folder: {
 									type: 'string',
-									enum: ['file', 'folder', 'tag', 'vault'],
-									description: 'Type of scope to search in'
-								},
-								scope_value: {
-									type: 'string',
-									description: 'Value for the scope (file path, folder path, or tag name). Empty for vault-wide search.'
-								}
-							},
-							required: ['query', 'scope_type']
-						}
-					},
-					{
-						name: 'find_clusters',
-						description: 'Find related notes based on keyword similarity',
-						inputSchema: {
-							type: 'object',
-							properties: {
-								folder_path: {
-									type: 'string',
-									description: 'Folder path to search in (use "" for root)'
-								},
-								query: {
-									type: 'string',
-									description: 'Search keywords to find related notes'
-								},
-								depth: {
-									type: 'number',
-									description: 'How deep to traverse links (default: 1)',
-									default: 1
-								}
-							},
-							required: ['folder_path', 'query']
-						}
-					},
-					{
-						name: 'bulk_tag',
-						description: 'Add tags to multiple notes at once',
-						inputSchema: {
-							type: 'object',
-							properties: {
-								file_paths: {
-									type: 'array',
-									items: { type: 'string' },
-									description: 'Array of file paths to tag'
+									description: 'Optional: Filter by folder path (e.g., "Projects/" or "🐉Ichigendo/")'
 								},
 								tag: {
 									type: 'string',
-									description: 'Tag to add (without #)'
+									description: 'Optional: Filter by tag (without #, e.g., "effort" or "project")'
+								},
+								limit: {
+									type: 'number',
+									description: 'Optional: Maximum number of results (default: 10)',
+									default: 10
 								}
 							},
-							required: ['file_paths', 'tag']
+							required: ['query']
+						}
+					},
+					{
+						name: 'get_note',
+						description: 'Read a note from the vault, including its content and metadata (tags, links, frontmatter). Use search_notes first to find the correct path.',
+						inputSchema: {
+							type: 'object',
+							properties: {
+								path: {
+									type: 'string',
+									description: 'Vault path to the note (e.g., "Projects/My Project.md" or "Journal 📆/2025-W51.md")'
+								}
+							},
+							required: ['path']
 						}
 					}
 				]
@@ -271,26 +249,56 @@ export class MCPServer {
 	 * Handle tools/call request
 	 * Executes a tool with given arguments
 	 */
-	private handleToolsCall(request: JsonRpcRequest): Record<string, any> {
+	private async handleToolsCall(request: JsonRpcRequest): Promise<Record<string, any>> {
 		const toolName = request.params?.name;
 		const args = request.params?.arguments || {};
 
 		console.log(`MCP Server: Calling tool "${toolName}" with args:`, args);
 
-		// For now, return placeholder responses
-		// Actual tool implementations will be added in rounds 4-6
-		return {
-			jsonrpc: '2.0',
-			id: request.id,
-			result: {
-				content: [
-					{
-						type: 'text',
-						text: `Tool "${toolName}" called successfully.\n\nArguments received:\n${JSON.stringify(args, null, 2)}\n\n(This is a placeholder response - actual implementation coming in next rounds)`
-					}
-				]
+		// Route to appropriate tool handler
+		try {
+			let result;
+			
+			switch (toolName) {
+				case 'search_notes':
+					result = await searchNotes(this.app, args.query, {
+						folder: args.folder,
+						tag: args.tag,
+						limit: args.limit
+					});
+					break;
+				case 'get_note':
+					result = getNote(this.app, args.path);
+					break;
+				default:
+					throw new Error(`Unknown tool: ${toolName}`);
 			}
-		};
+
+			return {
+				jsonrpc: '2.0',
+				id: request.id,
+				result: {
+					content: [
+						{
+							type: 'text',
+							text: result
+						}
+					]
+				}
+			};
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+			console.error(`MCP Server: Error executing tool "${toolName}":`, errorMessage);
+			
+			return {
+				jsonrpc: '2.0',
+				id: request.id,
+				error: {
+					code: -32603,
+					message: `Tool execution failed: ${errorMessage}`
+				}
+			};
+		}
 	}
 
 	/**

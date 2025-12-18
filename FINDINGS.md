@@ -31,6 +31,8 @@
 ### Feature Requests 💡
 *New ideas discovered during testing*
 
+- **Bases Query Execution**: Explore headless Bases view approach for programmatic query execution. The Bases API provides `BasesQueryResult` with entries when you register a custom view. Could register a temporary "invisible" view to read query results and expose via MCP tool `query_base(base_file_path)`.
+- **Plugin Integration**: Create tool(s) to leverage existing community plugins like Dataview, allowing Claude to query vault data through established plugin APIs rather than reimplementing logic.
 - 
 
 ---

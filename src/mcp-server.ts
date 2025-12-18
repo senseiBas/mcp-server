@@ -2,6 +2,8 @@ import { App } from 'obsidian';
 import { Server, IncomingMessage, ServerResponse } from 'http';
 import { getNote } from './tools/get-note';
 import { searchNotes } from './tools/search-notes';
+import { getRelatedNotes } from './tools/get-related-notes';
+import { appendToNote } from './tools/append-to-note';
 
 /**
  * JSON-RPC request structure
@@ -239,6 +241,38 @@ export class MCPServer {
 							},
 							required: ['path']
 						}
+					},
+					{
+						name: 'get_related_notes',
+						description: 'Get notes related to a specific note. Returns outgoing links (notes this note links to) and incoming links/backlinks (notes that link to this note). Returns only paths - use get_note to read full content.',
+						inputSchema: {
+							type: 'object',
+							properties: {
+								path: {
+									type: 'string',
+									description: 'Vault path to the note (e.g., "Journal 📆/2025-W51.md")'
+								}
+							},
+							required: ['path']
+						}
+					},
+					{
+						name: 'append_to_note',
+						description: 'Append content to the end of an existing note. Useful for adding new information, logging, or extending notes without replacing existing content.',
+						inputSchema: {
+							type: 'object',
+							properties: {
+								path: {
+									type: 'string',
+									description: 'Vault path to the note (e.g., "Journal 📆/2025-W51.md")'
+								},
+								content: {
+									type: 'string',
+									description: 'Content to append (markdown formatted)'
+								}
+							},
+							required: ['path', 'content']
+						}
 					}
 				]
 			}
@@ -269,6 +303,12 @@ export class MCPServer {
 					break;
 				case 'get_note':
 					result = await getNote(this.app, args.path);
+					break;
+				case 'get_related_notes':
+					result = await getRelatedNotes(this.app, args.path);
+					break;
+				case 'append_to_note':
+					result = await appendToNote(this.app, args.path, args.content);
 					break;
 				default:
 					throw new Error(`Unknown tool: ${toolName}`);

@@ -268,7 +268,7 @@ export class MCPServer {
 					});
 					break;
 				case 'get_note':
-					result = getNote(this.app, args.path);
+					result = await getNote(this.app, args.path);
 					break;
 				default:
 					throw new Error(`Unknown tool: ${toolName}`);

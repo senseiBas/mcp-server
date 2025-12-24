@@ -196,7 +196,7 @@ export class MCPServer {
 	 */
 	private handleToolsList(request: JsonRpcRequest): Record<string, any> {
 		console.log('MCP Server: Tools list request');
-		
+
 		return {
 			jsonrpc: '2.0',
 			id: request.id,
@@ -204,7 +204,7 @@ export class MCPServer {
 				tools: [
 					{
 						name: 'search_notes',
-						description: 'Search for notes in the vault by query text. Searches in note titles and content. Returns matching notes with snippets.',
+						description: 'Search for notes in the vault by query text. Searches in note titles and content. Returns matching notes with snippets, dates, and relevance scores. Supports filtering by folder/tag and sorting.',
 						inputSchema: {
 							type: 'object',
 							properties: {
@@ -224,6 +224,12 @@ export class MCPServer {
 									type: 'number',
 									description: 'Optional: Maximum number of results (default: 10)',
 									default: 10
+								},
+								sort_by: {
+									type: 'string',
+									description: 'Optional: Sort order - "relevance" (default), "modified", "created", or "title"',
+									enum: ['relevance', 'modified', 'created', 'title'],
+									default: 'relevance'
 								}
 							},
 							required: ['query']
@@ -231,13 +237,23 @@ export class MCPServer {
 					},
 					{
 						name: 'get_note',
-						description: 'Read a note from the vault, including its content and metadata (tags, links, frontmatter). Use search_notes first to find the correct path.',
+						description: 'Read a note from the vault, including its content and metadata (tags, links, frontmatter). Supports preview mode for large files. Use search_notes first to find the correct path.',
 						inputSchema: {
 							type: 'object',
 							properties: {
 								path: {
 									type: 'string',
 									description: 'Vault path to the note (e.g., "Projects/My Project.md" or "Journal 📆/2025-W51.md")'
+								},
+								preview: {
+									type: 'boolean',
+									description: 'Optional: Return only first 500 chars (useful for large files, default: false)',
+									default: false
+								},
+								include_metadata: {
+									type: 'boolean',
+									description: 'Optional: Include metadata like tags, links, headings (default: true)',
+									default: true
 								}
 							},
 							required: ['path']
@@ -245,13 +261,25 @@ export class MCPServer {
 					},
 					{
 						name: 'get_related_notes',
-						description: 'Get notes related to a specific note. Returns outgoing links (notes this note links to) and incoming links/backlinks (notes that link to this note). Returns only paths - use get_note to read full content.',
+						description: 'Get notes related to a specific note. Returns outgoing links (notes this note links to) and incoming links/backlinks (notes that link to this note). Supports depth traversal and content snippets.',
 						inputSchema: {
 							type: 'object',
 							properties: {
 								path: {
 									type: 'string',
 									description: 'Vault path to the note (e.g., "Journal 📆/2025-W51.md")'
+								},
+								depth: {
+									type: 'number',
+									description: 'Optional: Depth of link traversal (1-3). 1=direct links only, 2-3=transitive links (default: 1)',
+									default: 1,
+									minimum: 1,
+									maximum: 3
+								},
+								include_snippets: {
+									type: 'boolean',
+									description: 'Optional: Include content snippets from related notes (default: false)',
+									default: false
 								}
 							},
 							required: ['path']
@@ -259,7 +287,7 @@ export class MCPServer {
 					},
 					{
 						name: 'append_to_note',
-						description: 'Append content to the end of an existing note. Useful for adding new information, logging, or extending notes without replacing existing content.',
+						description: 'Append content to an existing note. Supports appending at different positions (end, start, after frontmatter). Useful for adding new information, logging, or extending notes.',
 						inputSchema: {
 							type: 'object',
 							properties: {
@@ -270,6 +298,17 @@ export class MCPServer {
 								content: {
 									type: 'string',
 									description: 'Content to append (markdown formatted)'
+								},
+								position: {
+									type: 'string',
+									description: 'Optional: Where to append - "end" (default), "start", or "after_frontmatter"',
+									enum: ['end', 'start', 'after_frontmatter'],
+									default: 'end'
+								},
+								ensure_newline: {
+									type: 'boolean',
+									description: 'Optional: Ensure newline separation (default: true)',
+									default: true
 								}
 							},
 							required: ['path', 'content']
@@ -277,7 +316,7 @@ export class MCPServer {
 					},
 					{
 						name: 'create_note',
-						description: 'Create a new note in the vault root folder. The note will be created with the specified filename and content.',
+						description: 'Create a new note in the vault. Supports creating in specific folders (auto-creates if needed), overwriting existing files, and optionally opening after creation.',
 						inputSchema: {
 							type: 'object',
 							properties: {
@@ -288,6 +327,21 @@ export class MCPServer {
 								content: {
 									type: 'string',
 									description: 'Content to write to the new note (markdown formatted)'
+								},
+								folder: {
+									type: 'string',
+									description: 'Optional: Folder path to create note in (e.g., "Projects/"). Auto-creates folder if needed. Defaults to root folder.',
+									default: ''
+								},
+								open_after: {
+									type: 'boolean',
+									description: 'Optional: Open the note in Obsidian after creation (default: false)',
+									default: false
+								},
+								overwrite: {
+									type: 'boolean',
+									description: 'Optional: Overwrite if file already exists (default: false)',
+									default: false
 								}
 							},
 							required: ['filename', 'content']
@@ -311,26 +365,40 @@ export class MCPServer {
 		// Route to appropriate tool handler
 		try {
 			let result;
-			
+
 			switch (toolName) {
 				case 'search_notes':
 					result = await searchNotes(this.app, args.query, {
 						folder: args.folder,
 						tag: args.tag,
-						limit: args.limit
+						limit: args.limit,
+						sort_by: args.sort_by
 					});
 					break;
 				case 'get_note':
-					result = await getNote(this.app, args.path);
+					result = await getNote(this.app, args.path, {
+						preview: args.preview,
+						include_metadata: args.include_metadata
+					});
 					break;
 				case 'get_related_notes':
-					result = await getRelatedNotes(this.app, args.path);
+					result = await getRelatedNotes(this.app, args.path, {
+						depth: args.depth,
+						include_snippets: args.include_snippets
+					});
 					break;
 				case 'append_to_note':
-					result = await appendToNote(this.app, args.path, args.content);
+					result = await appendToNote(this.app, args.path, args.content, {
+						position: args.position,
+						ensure_newline: args.ensure_newline
+					});
 					break;
 				case 'create_note':
-					result = await createNote(this.app, args.filename, args.content);
+					result = await createNote(this.app, args.filename, args.content, {
+						folder: args.folder,
+						open_after: args.open_after,
+						overwrite: args.overwrite
+					});
 					break;
 				default:
 					throw new Error(`Unknown tool: ${toolName}`);

@@ -119,13 +119,13 @@ export async function getNote(
 			is_preview: isPreview
 		};
 
-		// Add frontmatter separately if it exists
-		if (frontmatter) {
-			response.frontmatter = frontmatter;
-		}
-
 		// Add metadata if requested
 		if (include_metadata) {
+			// Add frontmatter separately if it exists
+			if (frontmatter) {
+				response.frontmatter = frontmatter;
+			}
+
 			const cache = app.metadataCache.getCache(path);
 
 			if (cache) {

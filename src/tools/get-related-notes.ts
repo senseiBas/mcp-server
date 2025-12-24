@@ -71,16 +71,19 @@ export async function getRelatedNotes(
 
 	try {
 		const {
-			depth = 1,
+			depth: depthParam = 1,
 			include_snippets = false,
 			max_snippet_length = 150
 		} = options;
 
+		// Ensure depth is a number (could come as string from JSON)
+		const depth = typeof depthParam === 'string' ? parseInt(depthParam, 10) : depthParam;
+
 		// Validate depth parameter
-		if (depth < 1 || depth > 3) {
+		if (isNaN(depth) || depth < 1 || depth > 3) {
 			return createErrorResponse(
 				'INVALID_PARAMETER',
-				'Depth must be between 1 and 3',
+				'Depth must be a number between 1 and 3',
 				['Use depth=1 for direct links only, depth=2-3 for transitive links'],
 				startTime
 			);

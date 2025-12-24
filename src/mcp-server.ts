@@ -4,6 +4,7 @@ import { getNote } from './tools/get-note';
 import { searchNotes } from './tools/search-notes';
 import { getRelatedNotes } from './tools/get-related-notes';
 import { appendToNote } from './tools/append-to-note';
+import { createNote } from './tools/create-note';
 
 /**
  * JSON-RPC request structure
@@ -273,6 +274,24 @@ export class MCPServer {
 							},
 							required: ['path', 'content']
 						}
+					},
+					{
+						name: 'create_note',
+						description: 'Create a new note in the vault root folder. The note will be created with the specified filename and content.',
+						inputSchema: {
+							type: 'object',
+							properties: {
+								filename: {
+									type: 'string',
+									description: 'Name of the file to create (with or without .md extension, e.g., "My New Note" or "My New Note.md")'
+								},
+								content: {
+									type: 'string',
+									description: 'Content to write to the new note (markdown formatted)'
+								}
+							},
+							required: ['filename', 'content']
+						}
 					}
 				]
 			}
@@ -309,6 +328,9 @@ export class MCPServer {
 					break;
 				case 'append_to_note':
 					result = await appendToNote(this.app, args.path, args.content);
+					break;
+				case 'create_note':
+					result = await createNote(this.app, args.filename, args.content);
 					break;
 				default:
 					throw new Error(`Unknown tool: ${toolName}`);
